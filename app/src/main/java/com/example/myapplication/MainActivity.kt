@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -88,6 +89,11 @@ fun MyScheduleApp() {
                                 else "未設定",
                                 style = MaterialTheme.typography.bodyLarge
                             )
+                            Text(
+                                text = scheduleSlots[index].category.displayName,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
                         }
                     }
                 }
@@ -106,7 +112,7 @@ fun MyScheduleApp() {
             val currentSlot = scheduleSlots[editingIndex!!]
             var descriptionInput by remember { mutableStateOf(currentSlot.description) }
             var selectedCategory by remember { mutableStateOf(currentSlot.category) }
-            var expandedCategory by remember { mutableStateOf(false) }
+            var expanded by remember { mutableStateOf(false) }
             
             AlertDialog(
                 onDismissRequest = { editingIndex = null },
@@ -120,31 +126,43 @@ fun MyScheduleApp() {
                             placeholder = { Text("例: ミーティング") },
                             modifier = Modifier.fillMaxWidth()
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        // カテゴリー選択用ドロップダウン
-                        OutlinedTextField(
-                            value = selectedCategory.displayName,
-                            onValueChange = { /* 読み取り専用 */ },
-                            label = { Text("カテゴリーを選択") },
-                            readOnly = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { expandedCategory = true }
-                        )
-                        DropdownMenu(
-                            expanded = expandedCategory,
-                            onDismissRequest = { expandedCategory = false },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            // Categoryの全項目を表示
-                            Category.values().forEach { category ->
-                                DropdownMenuItem(
-                                    text = { Text(category.displayName) },
-                                    onClick = {
-                                        selectedCategory = category
-                                        expandedCategory = false
-                                    }
-                                )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // カテゴリー選択用のドロップダウンメニュー
+                        Box {
+                            OutlinedButton(
+                                onClick = { expanded = true },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(selectedCategory.displayName)
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Category.values().forEach { category ->
+                                    DropdownMenuItem(
+                                        text = { 
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .background(category.color)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(category.displayName)
+                                            }
+                                        },
+                                        onClick = {
+                                            selectedCategory = category
+                                            expanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
