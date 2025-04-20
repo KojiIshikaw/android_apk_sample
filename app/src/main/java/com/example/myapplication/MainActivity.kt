@@ -17,8 +17,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.room.Room
+import com.example.myapplication.data.AppDatabase
+import com.example.myapplication.data.ScheduleEntity
 import com.example.myapplication.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 
 // カテゴリーの定義：各カテゴリーに表示名と背景色を設定
 enum class Category(val displayName: String, val color: Color) {
@@ -33,12 +38,21 @@ enum class Category(val displayName: String, val color: Color) {
 data class ScheduleItem(val description: String, val category: Category)
 
 class MainActivity : ComponentActivity() {
+    private lateinit var database: AppDatabase
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        database = Room.databaseBuilder(
+            applicationContext,
+            AppDatabase::class.java,
+            "schedule-database"
+        ).build()
+
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                MyScheduleApp()
+                MyScheduleApp(database)
             }
         }
     }
@@ -46,15 +60,23 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MyScheduleApp() {
-    // 8個のスロット（各3時間区分）の初期状態：内容は空文字、カテゴリーはNone
-    var scheduleSlots by remember {
-        mutableStateOf(
-            List(8) { ScheduleItem(description = "", category = Category.None) }
-        )
-    }
-    // 編集中のスロットのインデックス（タップされたときに設定される）
+fun MyScheduleApp(database: AppDatabase) {
+    val scheduleDao = database.scheduleDao()
+    var scheduleSlots by remember { mutableStateOf(List(8) { ScheduleItem("", Category.None) }) }
     var editingIndex by remember { mutableStateOf<Int?>(null) }
+    val scope = rememberCoroutineScope()
+
+    // データベースからスケジュールを読み込む
+    LaunchedEffect(Unit) {
+        scheduleDao.getAllSchedules().collect { schedules ->
+            val newSlots = List(8) { index ->
+                schedules.find { it.timeSlot == index }?.let {
+                    ScheduleItem(it.description, it.category)
+                } ?: ScheduleItem("", Category.None)
+            }
+            scheduleSlots = newSlots
+        }
+    }
     
     Scaffold(
         topBar = {
@@ -67,13 +89,10 @@ fun MyScheduleApp() {
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-            // 最上部の境界ラベル（0時）
             item { TimeDivider(time = "0時") }
             
-            // 各スロットを表示
             for (index in scheduleSlots.indices) {
                 item {
-                    // カードの背景色はカテゴリーにより決定
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -97,7 +116,6 @@ fun MyScheduleApp() {
                         }
                     }
                 }
-                // 区切り時刻の表示例（例：6時, 12時, 18時, 24時）
                 when (index) {
                     1 -> item { TimeDivider(time = "6時") }
                     3 -> item { TimeDivider(time = "12時") }
@@ -107,7 +125,6 @@ fun MyScheduleApp() {
             }
         }
         
-        // 編集用ダイアログ（タップされたスロットの内容とカテゴリーを編集）
         if (editingIndex != null) {
             val currentSlot = scheduleSlots[editingIndex!!]
             var descriptionInput by remember { mutableStateOf(currentSlot.description) }
@@ -128,7 +145,6 @@ fun MyScheduleApp() {
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         
-                        // カテゴリー選択用のドロップダウンメニュー
                         Box {
                             OutlinedButton(
                                 onClick = { expanded = true },
@@ -170,13 +186,22 @@ fun MyScheduleApp() {
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            scheduleSlots = scheduleSlots.toMutableList().also {
-                                it[editingIndex!!] = it[editingIndex!!].copy(
+                            scope.launch {
+                                val newSchedule = ScheduleEntity(
+                                    timeSlot = editingIndex!!,
                                     description = descriptionInput,
                                     category = selectedCategory
                                 )
+                                scheduleDao.insertSchedule(newSchedule)
+                                
+                                scheduleSlots = scheduleSlots.toMutableList().also {
+                                    it[editingIndex!!] = it[editingIndex!!].copy(
+                                        description = descriptionInput,
+                                        category = selectedCategory
+                                    )
+                                }
+                                editingIndex = null
                             }
-                            editingIndex = null
                         }
                     ) {
                         Text("保存")
@@ -207,13 +232,5 @@ fun TimeDivider(time: String) {
             modifier = Modifier.padding(horizontal = 8.dp)
         )
         Divider(modifier = Modifier.weight(1f))
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun MyScheduleAppPreview() {
-    MyApplicationTheme {
-        MyScheduleApp()
     }
 }
